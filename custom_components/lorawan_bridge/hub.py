@@ -41,7 +41,7 @@ from .const import (
     signal_new_field,
     signal_update,
 )
-from .parsers import PARSERS, Uplink, classify, guess_binary_class, guess_sensor_meta, normalize_eui
+from .parsers import PARSERS, UNIT_SUFFIX, Uplink, classify, guess_binary_class, guess_sensor_meta, normalize_eui
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -299,13 +299,15 @@ class LoRaWANHub:
 
         new_fields: list[str] = []
         for name, value in up.fields.items():
+            if name.endswith(UNIT_SUFFIX):
+                continue
             kind = classify(value)
             if kind is None:
                 continue
             dev["values"][name] = value
             if name not in dev["fields"]:
-                meta = guess_sensor_meta(name, value) if kind == "sensor" else {"device_class": guess_binary_class(name)}
-                dev["fields"][name] = {"kind": kind, **meta}
+                meta = guess_sensor_meta(name, value, up.fields.get(name + UNIT_SUFFIX)) if kind == "sensor" else {"device_class": guess_binary_class(name)}
+                dev["fields"][name] = {"kind": kind, "label": up.labels.get(name), **meta}
                 new_fields.append(name)
 
         if is_new:

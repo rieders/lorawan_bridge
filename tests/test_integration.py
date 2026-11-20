@@ -109,3 +109,36 @@ async def test_gps_tracker(hass):
     up["uplink_message"]["decoded_payload"]["gps"] = {"latitude": 0, "longitude": 0}
     entry.runtime_data._process("t", json.dumps(up).encode()); await hass.async_block_till_done()
     assert hass.states.get("device_tracker.feldwetter_position").state == "unknown"
+
+
+async def test_wasseruhr(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={**DATA, "application_id": "wasseruhrgarten", "import_devices": False}, title="TTN")
+    entry.add_to_hass(hass)
+    with patch("custom_components.lorawan_bridge.hub.LoRaWANHub._start_mqtt"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    up = {
+        "end_device_ids": {"device_id": "eui-f80df10000017f64", "dev_eui": "F80DF10000017F64",
+                           "application_ids": {"application_id": "wasseruhrgarten"}},
+        "uplink_message": {"f_port": 1, "f_cnt": 4, "frm_payload": "AQ==", "decoded_payload": {
+            "Datum und Zeit": "20.11.26 14:40", "Datum und Zeit valide": True,
+            "Fabrikationsnummer": 30300780, "Fehlermeldungen": ["Keine Zugriffsrechte vorhanden"],
+            "Installationsdatum": "17.06.24", "Sommerzeit": False, "Version": 2000000,
+            "Volumen": {"value": 123.456, "unit": "m3"},
+            "Volumen zum Stichtag": {"Wert": 120.0, "Einheit": "m³"},
+            "Volumen zur vollen Stunde - 1": {"value": 123.4, "unit": "m³"},
+        }},
+    }
+    entry.runtime_data._process("t", json.dumps(up).encode()); await hass.async_block_till_done()
+    names = {s.entity_id: (s.name, s.state, s.attributes.get("unit_of_measurement"), s.attributes.get("device_class"), s.attributes.get("state_class"))
+             for s in hass.states.async_all() if "eui_f80df" in s.entity_id}
+    for k, v in sorted(names.items()):
+        print(k, v)
+    vol = hass.states.get("sensor.eui_f80df10000017f64_volumen")
+    assert vol.state == "123.456" and vol.attributes["unit_of_measurement"] == "m³"
+    assert vol.attributes["device_class"] == "water" and vol.attributes["state_class"] == "total_increasing"
+    fab = hass.states.get("sensor.eui_f80df10000017f64_fabrikationsnummer")
+    assert fab.state == "30300780" and "state_class" not in fab.attributes
+    assert hass.states.get("binary_sensor.eui_f80df10000017f64_datum_und_zeit_valide").state == "on"
+    assert hass.states.get("sensor.eui_f80df10000017f64_fehlermeldungen").state == "Keine Zugriffsrechte vorhanden"
+    assert not any("unit" in e for e in names)

@@ -6,6 +6,7 @@ Holt LoRaWAN-Geräte aus **The Things Network (TTN v3)**, **ChirpStack v4** (auc
 - **Geräteimport per API** (TTN: immer möglich, ChirpStack: mit API-URL + Token) – alle Geräte der Application erscheinen sofort.
 - **Automatisches Anlegen** neuer Geräte und Sensoren beim ersten Uplink.
 - Jedes Feld aus dem Payload-Decoder wird zu einer Entity: Zahlen/Text → `sensor`, `true/false` → `binary_sensor`. Verschachtelte Werte werden flach gemacht (`gps.lat` → `gps_lat`).
+- Objekte wie `{"value": 12.3, "unit": "m3"}` werden zu einem Sensor mit Einheit (z. B. Wasserzähler in m³, nutzbar im Energie-Dashboard unter Wasser).
 - Gerätetyp und Einheit werden über den Feldnamen erkannt (temperature, humidity, battery, BatV, pressure, co2, lux, pm25, …).
 - Diagnose je Gerät: Zuletzt gesehen, RSSI, SNR, Gateway, Spreading Factor, Frame-Zähler (FPort/Rohdaten deaktiviert).
 - Event `lorawan_bridge_uplink` mit Rohdaten und decodierten Werten für Automationen.

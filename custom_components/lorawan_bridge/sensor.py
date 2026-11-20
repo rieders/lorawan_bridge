@@ -146,7 +146,7 @@ class LoRaWANValueSensor(LoRaWANEntity, SensorEntity):
         super().__init__(hub, key, f"v_{field}")
         self.field = field
         meta = hub.devices[key]["fields"][field]
-        self._attr_name = pretty_name(field)
+        self._attr_name = pretty_name(field, hub.devices[key]["fields"][field].get("label"))
         if field in gps_fields(hub.devices[key]["fields"]):
             self._attr_entity_registry_enabled_default = False  # steckt im Kartenpunkt
         self._numeric = meta.get("state_class") is not None

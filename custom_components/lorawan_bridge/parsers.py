@@ -28,6 +28,7 @@ class Uplink:
     sf: str | None = None
     received_at: datetime | None = None
     payload_hex: str | None = None
+    labels: dict[str, str] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- helpers
@@ -71,22 +72,61 @@ def parse_time(value: Any) -> datetime | None:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def flatten(obj: Any, prefix: str = "") -> dict[str, Any]:
-    """Verschachtelte Decoder-Ausgabe zu flachen Feldern: {"a":{"b":1}} -> {"a_b":1}."""
+_VALUE_KEYS = ("value", "wert", "val", "v", "reading", "messwert")
+_UNIT_KEYS = ("unit", "einheit", "unit_of_measurement", "uom", "u")
+UNIT_SUFFIX = "__unit"
+
+
+def _value_unit(obj: dict) -> tuple[Any, str] | None:
+    """{"value": 12.3, "unit": "m3"} -> (12.3, "m3")."""
+    low = {str(k).lower(): v for k, v in obj.items()}
+    val = next((low[k] for k in _VALUE_KEYS if k in low), None)
+    unit = next((low[k] for k in _UNIT_KEYS if k in low), None)
+    if isinstance(val, (int, float)) and not isinstance(val, bool) and isinstance(unit, str):
+        return val, unit
+    return None
+
+
+def _clean(key: str) -> str:
+    key = (key.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+           .replace("Ä", "Ae").replace("Ö", "Oe").replace("Ü", "Ue").replace("ß", "ss"))
+    return re.sub(r"[^0-9a-zA-Z_]+", "_", key).strip("_")
+
+
+def flatten(obj: Any, prefix: str = "", labels: dict[str, str] | None = None, lprefix: str = "") -> dict[str, Any]:
+    """Verschachtelte Decoder-Ausgabe zu flachen Feldern: {"a":{"b":1}} -> {"a_b":1}.
+
+    Objekte der Form {"value": x, "unit": "m3"} werden zu einem Feld; die Einheit
+    landet unter "<feld>__unit" (wird nicht als eigene Entity angelegt).
+    """
     out: dict[str, Any] = {}
+    if isinstance(obj, dict) and prefix:
+        vu = _value_unit(obj)
+        if vu:
+            if labels is not None:
+                labels[prefix] = lprefix
+            out[prefix] = vu[0]
+            out[prefix + UNIT_SUFFIX] = vu[1]
+            return out
     if isinstance(obj, dict):
         for k, v in obj.items():
-            key = re.sub(r"[^0-9a-zA-Z_]+", "_", str(k)).strip("_")
-            out.update(flatten(v, f"{prefix}_{key}" if prefix else key))
+            key = _clean(str(k))
+            lab = re.sub(r"[_\s]+", " ", str(k)).strip()
+            out.update(flatten(v, f"{prefix}_{key}" if prefix else key, labels,
+                               f"{lprefix} {lab}" if lprefix else lab))
     elif isinstance(obj, list):
         if len(obj) <= 16 and all(not isinstance(i, (dict, list)) for i in obj):
             for i, v in enumerate(obj):
                 out[f"{prefix}_{i}"] = v
+                if labels is not None:
+                    labels[f"{prefix}_{i}"] = f"{lprefix} {i + 1}" if len(obj) > 1 else lprefix
         else:
             for i, v in enumerate(obj[:16]):
-                out.update(flatten(v, f"{prefix}_{i}"))
+                out.update(flatten(v, f"{prefix}_{i}", labels, f"{lprefix} {i + 1}"))
     elif obj is not None and prefix:
         out[prefix] = obj
+        if labels is not None:
+            labels[prefix] = lprefix
     return out
 
 
@@ -130,7 +170,8 @@ def parse_ttn(data: dict) -> Uplink | None:
         app_id=(ids.get("application_ids") or {}).get("application_id"),
         f_port=up.get("f_port"),
         f_cnt=up.get("f_cnt"),
-        fields=flatten(up.get("decoded_payload") or {}),
+        fields=flatten(up.get("decoded_payload") or {}, labels=(labels := {})),
+        labels=labels,
         rssi=rssi,
         snr=snr,
         gateway=gw,
@@ -156,7 +197,8 @@ def parse_cs4(data: dict) -> Uplink | None:
         app_id=info.get("applicationId"),
         f_port=data.get("fPort"),
         f_cnt=data.get("fCnt"),
-        fields=flatten(data.get("object") or {}),
+        fields=flatten(data.get("object") or {}, labels=(labels := {})),
+        labels=labels,
         rssi=rssi,
         snr=snr,
         gateway=gw,
@@ -182,7 +224,8 @@ def parse_cs3(data: dict) -> Uplink | None:
         app_id=str(data["applicationID"]) if data.get("applicationID") is not None else None,
         f_port=data.get("fPort"),
         f_cnt=data.get("fCnt"),
-        fields=flatten(data.get("object") or {}),
+        fields=flatten(data.get("object") or {}, labels=(labels := {})),
+        labels=labels,
         rssi=rssi,
         snr=snr,
         gateway=gw,
@@ -235,13 +278,47 @@ _SENSOR_RULES: list[tuple[str, str, str | None]] = [
 ]
 
 
-def guess_sensor_meta(name: str, value: Any) -> dict[str, Any]:
-    """device_class/Einheit/state_class anhand von Feldname und Wert raten."""
+_UNIT_MAP = {
+    "m3": "m³", "m^3": "m³", "m³": "m³", "cbm": "m³",
+    "l": "L", "liter": "L", "litre": "L",
+    "c": "°C", "°c": "°C", "degc": "°C",
+    "kwh": "kWh", "wh": "Wh", "w": "W", "kw": "kW", "v": "V", "mv": "mV", "a": "A",
+    "%": "%", "hpa": "hPa", "pa": "Pa", "lux": "lx", "lx": "lx", "ppm": "ppm",
+}
+_UNIT_CLASS = {
+    "m³": ("water", "total_increasing"), "L": ("water", "total_increasing"),
+    "°C": ("temperature", "measurement"), "kWh": ("energy", "total_increasing"),
+    "Wh": ("energy", "total_increasing"), "W": ("power", "measurement"),
+    "kW": ("power", "measurement"), "V": ("voltage", "measurement"),
+    "mV": ("voltage", "measurement"), "A": ("current", "measurement"),
+    "hPa": ("atmospheric_pressure", "measurement"), "Pa": ("atmospheric_pressure", "measurement"),
+    "lx": ("illuminance", "measurement"), "ppm": ("carbon_dioxide", "measurement"),
+}
+
+
+def normalize_unit(unit: Any) -> str | None:
+    if not isinstance(unit, str) or not unit.strip():
+        return None
+    u = unit.strip()
+    return _UNIT_MAP.get(u.lower(), u)
+
+
+def guess_sensor_meta(name: str, value: Any, unit: Any = None) -> dict[str, Any]:
+    """device_class/Einheit/state_class anhand von Feldname, Wert und ggf. Einheit raten."""
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return {"device_class": None, "unit": None, "state_class": None}
     n = name.lower()
-    if re.search(r"(time|stamp|epoch|date|counter|count$|_id$|^id$)", n):
+    u = normalize_unit(unit)
+    if u:
+        dc, sc = _UNIT_CLASS.get(u, (None, "measurement"))
+        if dc == "water" and re.search(r"(flow|durchfluss|rate)", n):
+            dc, sc = None, "measurement"
+        return {"device_class": dc, "unit": u, "state_class": sc}
+    if re.search(r"(time|stamp|epoch|date|datum|zeit|counter|count$|_id$|^id$|nummer|number|serial|"
+                 r"version|fw|firmware|status|code|mode|modus|typ|type)", n):
         return {"device_class": None, "unit": None, "state_class": None}
+    if re.search(r"(volum|wasser|water|zaehler|meter_reading)", n):
+        return {"device_class": "water", "unit": "m³", "state_class": "total_increasing"}
     for pattern, dc, unit in _SENSOR_RULES:
         if re.search(pattern, n):
             if dc == "battery" and isinstance(value, (int, float)) and 0 < value <= 5:
@@ -275,7 +352,9 @@ def guess_binary_class(name: str) -> str | None:
     return None
 
 
-def pretty_name(field_name: str) -> str:
+def pretty_name(field_name: str, label: str | None = None) -> str:
+    if label:
+        return label[:1].upper() + label[1:]
     s = field_name.replace("_", " ").strip()
     return s[:1].upper() + s[1:] if s else field_name
 

@@ -78,7 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LoRaWANConfigEntry) -> b
 
 async def async_unload_entry(hass: HomeAssistant, entry: LoRaWANConfigEntry) -> bool:
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if ok:
+    if ok and getattr(entry, "runtime_data", None):
         await entry.runtime_data.async_stop()
     return ok
 

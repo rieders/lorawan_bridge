@@ -31,7 +31,7 @@ class LoRaWANBinarySensor(LoRaWANEntity, BinarySensorEntity):
     def __init__(self, hub: LoRaWANHub, key: str, field: str) -> None:
         super().__init__(hub, key, f"b_{field}")
         self.field = field
-        self._attr_name = pretty_name(field)
+        self._attr_name = pretty_name(field, hub.devices[key]["fields"][field].get("label"))
         dc = hub.devices[key]["fields"][field].get("device_class")
         if dc:
             try:
