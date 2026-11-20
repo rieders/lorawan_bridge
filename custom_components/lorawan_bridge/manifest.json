@@ -9,5 +9,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/rieders/lorawan_bridge/issues",
   "requirements": ["paho-mqtt>=1.6.1"],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

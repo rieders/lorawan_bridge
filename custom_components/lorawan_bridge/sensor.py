@@ -28,6 +28,15 @@ class DiagDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any]
 
 
+def _short_hex(value: str | None, keep: int = 6) -> str | None:
+    """'780c13…' -> '78 0C 13 60 27 01 … (45 Byte)' – passt in eine Zeile."""
+    if not value:
+        return None
+    data = [value[i:i + 2].upper() for i in range(0, len(value), 2)]
+    head = " ".join(data[:keep])
+    return f"{head} … ({len(data)} Byte)" if len(data) > keep else head
+
+
 def _ts(state: dict) -> Any:
     return dt_util.parse_datetime(state["last_seen"]) if state.get("last_seen") else None
 
@@ -91,7 +100,7 @@ DIAGNOSTICS: tuple[DiagDescription, ...] = (
         icon="mdi:hexadecimal",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
-        value_fn=lambda s: (s.get("payload_hex") or "")[:255] or None,
+        value_fn=lambda s: _short_hex(s.get("payload_hex")),
     ),
 )
 
@@ -130,6 +139,14 @@ class LoRaWANDiagSensor(LoRaWANEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.key == "payload_hex":
+            raw = self.dev["state"].get("payload_hex")
+            if not raw:
+                return None
+            return {
+                "hex": " ".join(raw[i:i + 2].upper() for i in range(0, len(raw), 2)),
+                "bytes": len(raw) // 2,
+            }
         if self.entity_description.key != "last_seen":
             return None
         d, s = self.dev, self.dev["state"]
