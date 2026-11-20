@@ -1,0 +1,24 @@
+send_downlink:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: lorawan_bridge
+    f_port:
+      required: true
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 223
+          mode: box
+    payload:
+      required: true
+      example: "01FF"
+      selector:
+        text:
+    confirmed:
+      default: false
+      selector:
+        boolean:

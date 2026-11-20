@@ -1,0 +1,122 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "LoRaWAN Bridge",
+        "description": "Which network server do your LoRaWAN devices use?",
+        "menu_options": {
+          "ttn": "The Things Network (TTN v3)",
+          "chirpstack_v4": "ChirpStack v4 / Helium (ChirpStack-LNS)",
+          "chirpstack_v3": "ChirpStack v3"
+        }
+      },
+      "ttn": {
+        "title": "The Things Network",
+        "description": "Uplinks are received via MQTT directly from TTN. Create an API key in the TTN console under Applications → your app → API keys (rights: 'Read application traffic', 'Write downlink application traffic' and for import 'View devices in application').",
+        "data": {
+          "host": "TTN cluster",
+          "application_id": "Application ID",
+          "api_key": "API key",
+          "tenant": "Tenant",
+          "import_devices": "Import devices via API"
+        },
+        "data_description": {
+          "host": "e.g. eu1.cloud.thethings.network",
+          "api_key": "Starts with NNSXS.…",
+          "tenant": "'ttn' for the community edition, otherwise your tenant name"
+        }
+      },
+      "chirpstack_v4": {
+        "title": "ChirpStack v4",
+        "description": "Connection to the MQTT broker of your ChirpStack (or a ChirpStack-based Helium LNS).",
+        "data": {
+          "host": "MQTT broker",
+          "port": "Port",
+          "tls": "Use TLS",
+          "username": "Username",
+          "password": "Password",
+          "application_id": "Application ID (optional)",
+          "import_devices": "Import devices via API",
+          "api_url": "API URL (optional)",
+          "api_token": "API token (optional)"
+        },
+        "data_description": {
+          "application_id": "Leave empty to subscribe to all applications. Helpful for import and downlinks.",
+          "api_url": "Only for import – REST proxy (chirpstack-rest-api), e.g. http://chirpstack:8090",
+          "tls": "Usually port 8883"
+        }
+      },
+      "chirpstack_v3": {
+        "title": "ChirpStack v3",
+        "description": "Connection to the MQTT broker of your ChirpStack (or a ChirpStack-based Helium LNS).",
+        "data": {
+          "host": "MQTT broker",
+          "port": "Port",
+          "tls": "Use TLS",
+          "username": "Username",
+          "password": "Password",
+          "application_id": "Application ID (optional)",
+          "import_devices": "Import devices via API",
+          "api_url": "API URL (optional)",
+          "api_token": "API token (optional)"
+        },
+        "data_description": {
+          "application_id": "Leave empty to subscribe to all applications. Helpful for import and downlinks.",
+          "api_url": "Only for import, e.g. http://chirpstack:8080",
+          "tls": "Usually port 8883"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach MQTT broker.",
+      "invalid_auth": "Invalid MQTT credentials or API key.",
+      "import_needs_api": "Import requires API URL, API token and application ID.",
+      "api_cannot_connect": "API not reachable.",
+      "api_invalid_auth": "API key/token lacks permission to list devices.",
+      "api_app_not_found": "Application not found."
+    },
+    "abort": {
+      "already_configured": "This connection is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LoRaWAN Bridge",
+        "data": {
+          "topic": "MQTT-Topic",
+          "fire_events": "Fire lorawan_bridge_uplink event",
+          "import_devices": "Import devices via API"
+        },
+        "data_description": {
+          "topic": "Only change if your server uses a different topic.",
+          "fire_events": "For automations on raw data / every uplink."
+        }
+      }
+    }
+  },
+  "services": {
+    "send_downlink": {
+      "name": "Send downlink",
+      "description": "Sends a downlink to a LoRaWAN device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Device from LoRaWAN Bridge"
+        },
+        "f_port": {
+          "name": "FPort",
+          "description": "LoRaWAN port 1–223"
+        },
+        "payload": {
+          "name": "Payload (Hex)",
+          "description": "Bytes as hex, e.g. 01FF"
+        },
+        "confirmed": {
+          "name": "Confirmed",
+          "description": "Request confirmed downlink"
+        }
+      }
+    }
+  }
+}

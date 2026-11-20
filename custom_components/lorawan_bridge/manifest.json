@@ -1,0 +1,13 @@
+{
+  "domain": "lorawan_bridge",
+  "name": "LoRaWAN Bridge",
+  "codeowners": ["@rieders"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/rieders/lorawan_bridge",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/rieders/lorawan_bridge/issues",
+  "requirements": ["paho-mqtt>=1.6.1"],
+  "version": "0.2.0"
+}
